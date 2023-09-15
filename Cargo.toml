@@ -1,11 +1,12 @@
 [package]
-name = "KOMODO_DRAGON"
+name = "komodo_dragon"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lazy_static = "1.4.0"
 ndarray = "0.15.6"
 phf = { version = "0.11.2", features = ["macros"] }
 tempfile = "3.8.0"

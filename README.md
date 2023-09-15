@@ -7,6 +7,14 @@ KOMODO DRAGON is a rust translation of [KOMODO](https://github.com/imronuke/KOMO
 - [x] komodo -> main.rs
 - [x] mod_data -> data.rs
 - [ ] mod_io -> io.rs
+- [x] REWRITE
+- [x] BACKSPACE
+- [x] OPEN
+
+## TODO:
+
+- [ ] Check the hashsum of the file not the name
+- [ ] 
 
 # How to give feedback
 

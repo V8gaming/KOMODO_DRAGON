@@ -1,15 +1,17 @@
-pub fn fixedsrc() {
+use std::io::Error;
 
+pub fn fixedsrc() -> Result<(), Error> {
+    Ok(())
 }
-pub fn adjoint() {
-
+pub fn adjoint() -> Result<(), Error> {
+    Ok(())
 }
-pub fn cbsearch() {
-
+pub fn cbsearch() -> Result<(), Error> {
+    Ok(())
 }
-pub fn cbsearcht() {
-
+pub fn cbsearcht() -> Result<(), Error> {
+    Ok(())
 }
-pub fn forward() {
-
+pub fn forward() -> Result<(), Error> {
+    Ok(())
 }

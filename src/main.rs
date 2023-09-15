@@ -1,21 +1,26 @@
-//use crate::some_crate_for_fortran_equivalents::{inp_read, fixedsrc, adjoint, rod_eject, rod_eject_th, cbsearch, cbsearcht};
-use crate::data::SData;
-use crate::io::{inp_read, Io};
-use crate::control::{fixedsrc, adjoint, cbsearch, cbsearcht, forward};
-use crate::trans::{rod_eject,rod_eject_th};
+use std::io::Error;
 
-mod data;
-mod io;
-mod control;
-mod trans;
-fn main() {
+use komodo_dragon::control::{fixedsrc, adjoint, cbsearch, cbsearcht, forward};
+use komodo_dragon::data::{SData, Timing};
+use komodo_dragon::io::{Io, inp_read};
+use komodo_dragon::trans::{rod_eject, rod_eject_th};
+use komodo_dragon::read::STATEMENT_MAP;
+fn main() -> Result<(), Error> {
+    STATEMENT_MAP.lock().unwrap().insert(1123, ("  CPU time breakdown in seconds").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1124, ("    Input reading time   : {:10.4}  ({:5.1}%)").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1125, ("    XSEC processing time : {:10.4}  ({:5.1}%)").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1126, ("    CMFD time            : {:10.4}  ({:5.1}%)").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1127, ("    Nodal update time    : {:10.4}  ({:5.1}%)").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1128, ("    T-H time             : {:10.4}  ({:5.1}%)").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1129, ("    ------------------------------------------").to_string());
+    STATEMENT_MAP.lock().unwrap().insert(1130, ("    Total time           : {:10.4}").to_string());
     let mut sdata: SData = SData::default();
     let mut io: Io = Io::default();
     // Read input
-    let st = data::Timing::get_time();
-    inp_read(&mut io.iname, &mut io.oname, &mut io.card_files, 
-        &mut io.card_indicator, io.error_card, io.output_options.scr);
-    let fn_time = data::Timing::get_time();
+    let st = Timing::get_time();
+    inp_read(&mut io.iname, &mut io.oname, 
+        &mut io.card_indicator, io.error_card, io.output_options.scr)?;
+    let fn_time = Timing::get_time();
     sdata.timing.inp_time = fn_time - st;
     
     if io.output_options.scr {
@@ -23,23 +28,23 @@ fn main() {
     }
 
     match sdata.mode.as_str() {
-        "FIXEDSRC" => fixedsrc(),
-        "ADJOINT" => adjoint(),
+        "FIXEDSRC" => fixedsrc()?,
+        "ADJOINT" => adjoint()?,
         "RODEJECT" => {
             if io.card_indicator.bther == 0 {
-                rod_eject();
+                rod_eject()?;
             } else {
-                rod_eject_th();
+                rod_eject_th()?;
             }
         },
         "BCSEARCH" => {
             if io.card_indicator.bther == 0 {
-                cbsearch();
+                cbsearch()?;
             } else {
-                cbsearcht();
+                cbsearcht()?;
             }
         },
-        _ => forward(),
+        _ => forward()?
     }
 
     if sdata.transient_parameters.tranw {
@@ -80,5 +85,7 @@ fn main() {
         println!("    Total time           : {:10.4}", tot_time);
     }
 
+    
     println!("\nKOMODO EXIT NORMALLY");
+    Ok(())
 }

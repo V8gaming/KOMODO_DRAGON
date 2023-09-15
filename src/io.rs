@@ -1,6 +1,9 @@
-use std::{env, fs::File, io::{Error, ErrorKind, Write, BufReader, BufRead, Seek, SeekFrom, Read}, collections::HashMap, process::exit};
-use tempfile::tempfile;
+use std::{env, fs::File, io::{Error, ErrorKind, Write, BufReader, BufRead, Seek, SeekFrom},
+ collections::HashMap, process::exit};
 use ndarray::{Array1, Array3, Array2};
+use crate::read::{FileMeta, open_file, FileOrAsterisk, Status, Action, FILE_MAP, Access};
+
+use crate::{open_file, backspace, rewind};
 
 #[derive(Debug)]
 pub struct Io {
@@ -160,9 +163,7 @@ pub struct OptData {
     pub assembly: i32, // Assembly power output print option
 }
 
-pub fn inp_read(iname: &mut String, 
-    oname: &mut String, card_files: &mut HashMap<i32, Option<File>>, 
-    card_indicator: &mut CardInticator, mut error_card: ErrorCard, scr: bool) {
+pub fn inp_read(iname: &mut String, oname: &mut String, card_indicator: &mut CardInticator, mut error_card: ErrorCard, scr: bool) -> Result<(), Error> {
 
     // Get the command line arguments
     let args: Vec<String> = env::args().collect();
@@ -182,102 +183,91 @@ pub fn inp_read(iname: &mut String,
 
     // File operations to replace Fortran file operations
     // TODO
-    open_file(card_files,CardNumbers::Iunit.as_i32(), iname, "input", "ERROR IN INPUT FILE : ");
+    io_open_file(CardNumbers::Iunit.as_i32(), iname, "input", "ERROR IN INPUT FILE : ");
     *oname = format!("{}.out", iname.trim());
     oname.trim().to_string();
 
-    card_files.insert(CardNumbers::Ounit.as_i32(), File::create(oname).ok());
-    card_files.insert(CardNumbers::Umode.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uxsec.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ugeom.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ucase.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uesrc.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uiter.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uprnt.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uadf.as_i32(),  tempfile().ok());
-    card_files.insert(CardNumbers::Ucrod.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ubcon.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uftem.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Umtem.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ucden.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ucbcs.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uejct.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uther.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uxtab.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Ukern.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uextr.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uthet.as_i32(), tempfile().ok());
-    card_files.insert(CardNumbers::Uoutp.as_i32(), tempfile().ok());
+    let _ = open_file!(unit: CardNumbers::Ounit.as_i32(), file: FileOrAsterisk::File(oname.to_string()), status: Status::Replace , action: Action::Write);
+    let _ = open_file!(unit: CardNumbers::Umode.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uxsec.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ugeom.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ucase.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uesrc.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uiter.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uprnt.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uadf.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ucrod.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ubcon.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uftem.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Umtem.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ucden.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ucbcs.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uejct.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uther.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uxtab.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Ukern.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uextr.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uthet.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+    let _ = open_file!(unit: CardNumbers::Uoutp.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
 
     //By default, card file names are the input file name
     error_card.farr = Array1::from(vec![adjustl(iname)]);
 
     // Echo the input to the output file
-    inp_echo(card_files, scr);
+    inp_echo(scr);
 
     // Remove comments and write the entire input to the buffer file
-    card_files.insert(CardNumbers::Buff.as_i32(), tempfile().ok());
-    inp_comments(card_files.get(&CardNumbers::Iunit.as_i32()).unwrap()
-    , card_files.get(&CardNumbers::Buff.as_i32()).unwrap(), '!');
+    let _ = open_file!(unit: CardNumbers::Buff.as_i32(), status: Status::Scratch, action: Action::ReadWrite);
+
+    inp_comments(CardNumbers::Iunit.as_i32(),CardNumbers::Buff.as_i32(), '!');
 
     // Break the buffer file and re-write into different input card buffer
-    inp_rewrite(card_files.get(&CardNumbers::Buff.as_i32()).unwrap(), 
-    &mut error_card.farr, card_files.get(&CardNumbers::Bunit.as_i32()).unwrap(), card_indicator, &error_card.carr);
+    inp_rewrite(CardNumbers::Buff.as_i32(), card_indicator, error_card.farr);
 
     // Back to the first line for all input card buffer
-    backspace(card_files.get_mut(&CardNumbers::Umode.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uxsec.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ugeom.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ucase.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uesrc.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uiter.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uprnt.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uadf.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ucrod.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ubcon.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uftem.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Umtem.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ucden.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ucbcs.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uejct.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uther.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uxtab.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Ukern.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uextr.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uthet.as_i32()).unwrap());
-    backspace(card_files.get_mut(&CardNumbers::Uoutp.as_i32()).unwrap());
-    
+    rewind!(unit: CardNumbers::Umode.as_i32())?; rewind!(unit: CardNumbers::Uxsec.as_i32())?;
+    rewind!(unit: CardNumbers::Ugeom.as_i32())?; rewind!(unit: CardNumbers::Ucase.as_i32())?;
+    rewind!(unit: CardNumbers::Uesrc.as_i32())?; rewind!(unit: CardNumbers::Uiter.as_i32())?;
+    rewind!(unit: CardNumbers::Uprnt.as_i32())?; rewind!(unit: CardNumbers::Uadf.as_i32())?;
+    rewind!(unit: CardNumbers::Ucrod.as_i32())?; rewind!(unit: CardNumbers::Ubcon.as_i32())?;
+    rewind!(unit: CardNumbers::Uftem.as_i32())?; rewind!(unit: CardNumbers::Umtem.as_i32())?;
+    rewind!(unit: CardNumbers::Ucden.as_i32())?; rewind!(unit: CardNumbers::Ucbcs.as_i32())?;
+    rewind!(unit: CardNumbers::Uejct.as_i32())?; rewind!(unit: CardNumbers::Uther.as_i32())?;
+    rewind!(unit: CardNumbers::Uxtab.as_i32())?; rewind!(unit: CardNumbers::Ukern.as_i32())?;
+    rewind!(unit: CardNumbers::Uextr.as_i32())?; rewind!(unit: CardNumbers::Uthet.as_i32())?;
+    rewind!(unit: CardNumbers::Uoutp.as_i32())?;
+
     // Start reading buffer files for each input card buffer
-    card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"\n").ok();
-    card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"\n").ok();
-    card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(format!("{:30}", "START READING INPUT").as_bytes()).ok();
-    card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"\n").ok();
-    card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"******************************************************************************").ok();
-    
+    let mut map = FILE_MAP.lock().unwrap();
+    map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(b"\n").ok();
+    map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(b"\n").ok();
+    map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(format!("{:30}", "START READING INPUT").as_bytes()).ok();
+    map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(b"\n").ok();
+    map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(b"******************************************************************************").ok();
 
     // Checking card MODE
     if card_indicator.bmode == 1 {
-        inp_mode(card_files.get_mut(&CardNumbers::Umode.as_i32()).unwrap());
+        inp_mode(CardNumbers::Umode.as_i32(), card_indicator)?;
+        Ok(())
     } else {
-        card_files.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap()
-        .write_all(format!("{:30}", format!("CARD {} DOES NOT PRESENT. THIS CARD IS MANDATORY", "%MODE")).as_bytes()).ok();
+        map.get_mut(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(format!("{:30}", "CARD MODE DOES NOT PRESENT. THIS CARD IS MANDATORY").as_bytes()).ok();
+        exit(-1);
     }
 
     // WRITE(ounit,1021) '%MODE'
     // 1008 FORMAT (30X, 'START READING INPUT')
     // 1021 FORMAT(2X, 'CARD ', A, ' DOES NOT PRESENT. THIS CARD IS MANDATORY')
     // 1041 FORMAT(2X, 'CARD ', A, ' DOES NOT PRESENT. THIS CARD IS MANDATORY FOR ', A,' CALCULATION MODE')
-
-
+    
 }
-fn open_file(hash_map: &mut HashMap<i32, Option<File>>, card_number: i32, iname: &str, file_name: &str, er_message: &str) {
-    let efile: Result<File, Error> = File::open(iname);
-    if efile.is_err(){
+
+fn io_open_file(card_number: i32, iname: &str, file_name: &str, er_message: &str) {
+    let iost = open_file!(unit: card_number, file: FileOrAsterisk::File(iname.to_string()), 
+    status: Status::Old, action: Action::Read);
+    if iost.is_err() {
         let error = Error::new(ErrorKind::NotFound, er_message);
         println!("{}", error);
         println!("Could Not Find {} file : {}", file_name, iname);
-    } else {
-        hash_map.insert(card_number, efile.ok());
     }
 }
 
@@ -288,14 +278,16 @@ pub fn adjustl(s: &str) -> String {
 }
 ///# Purpose:
 ///To rewrite the input
-pub fn inp_echo(card_files: &mut HashMap<i32, Option<File>>, scr: bool) {
+pub fn inp_echo(scr: bool) {
 
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"###########################################################\n").ok();
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"#                 KOMODO DRAGON Version: 0.1              #\n").ok();
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"#           OPEN NUCLEAR REACTOR SIMULATOR                #\n").ok();
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"###########################################################\n").ok();
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"\n").ok();
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap().write_all(b"\n").ok();
+    let map = FILE_MAP.lock().unwrap();
+    let ounit = map.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref().unwrap();
+    ounit.0.as_ref().unwrap().write_all(b"###########################################################\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"#                 KOMODO DRAGON Version: 0.1              #\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"#           OPEN NUCLEAR REACTOR SIMULATOR                #\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"###########################################################\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"\n").ok();
 
     if scr {
         println!();
@@ -312,30 +304,25 @@ pub fn inp_echo(card_files: &mut HashMap<i32, Option<File>>, scr: bool) {
         println!("GIT COMMIT DATE   : {}", env!("GIT_DATE"));
         println!("GIT COMMIT BRANCH : {}", env!("GIT_BRANCH"));
     }
-    card_files.get(&CardNumbers::Ounit.as_i32())
-    .unwrap().as_ref().unwrap()
-    .write_all(b"###########################################################\n").ok();
+    ounit.0.as_ref().unwrap().write_all(b"###########################################################\n").ok();
     let nline = 0;
-    let file = card_files.get(&CardNumbers::Iunit.as_i32()).unwrap();
-    let mut reader = BufReader::new(file.as_ref().unwrap());
+    let iunit = map.get(&CardNumbers::Iunit.as_i32()).unwrap().as_ref().unwrap();
+    let mut reader = BufReader::new(iunit.0.as_ref().unwrap());
     let mut iline = String::new();
     match reader.read_line(&mut iline) {
         Ok(bytes_read) => {
             if bytes_read == 0 {
                 // Reached EOF (end-of-file)
-                card_files.get(&CardNumbers::Ounit.as_i32()).unwrap()
-                .as_ref().unwrap().write_all(
+                ounit.0.as_ref().unwrap().write_all(
                     format!(
                         " =============================INPUT DATA{} HERE===========================\n"
                     ,"ENDS").as_bytes()
                 ).ok();
-                card_files.get(&CardNumbers::Ounit.as_i32()).unwrap()
-                .as_ref().unwrap().write_all(b"\n").ok();
+                ounit.0.as_ref().unwrap().write_all(b"\n").ok();
                 exit(-1)
             } else {
                 iline.truncate(200); // Keep only first 200 characters
-                card_files.get(&CardNumbers::Ounit.as_i32()).unwrap().as_ref()
-                .unwrap().write_all(format!("{: >4}: {:<200}", nline, iline).as_bytes()).ok();
+                ounit.0.as_ref().unwrap().write_all(format!("{: >4}: {:<200}", nline, iline).as_bytes()).ok();
             }
         }
         Err(err) => {
@@ -343,14 +330,18 @@ pub fn inp_echo(card_files: &mut HashMap<i32, Option<File>>, scr: bool) {
             println!("An error occurred: {}", err);
         }
     }
-    card_files.get(&CardNumbers::Ounit.as_i32()).unwrap()
-    .as_ref().unwrap().seek(std::io::SeekFrom::Start(0)).ok();
+    let _ = backspace!(unit: CardNumbers::Ounit.as_i32());
+
 
 }
 
 /// Remove comments and write the entire input to the buffer file
-fn inp_comments(input: &Option<File>, buffer: &Option<File>, comment_start: char) {
-    let reader = BufReader::new(input.as_ref().unwrap());
+fn inp_comments(input: i32, buffer: i32, comment_start: char) {
+    let _ = open_file!(unit: buffer, status: Status::Scratch, action: Action::ReadWrite);
+    let file_map = FILE_MAP.lock().unwrap();
+    let mut input_file = file_map.get(&input).unwrap().as_ref().unwrap().0.as_ref().unwrap();
+    let reader = BufReader::new(input_file);
+    let mut buffer = file_map.get(&buffer).unwrap().as_ref().unwrap().0.as_ref().unwrap();
     for (ln, line) in reader.lines().enumerate() {
         if line.is_err() {
             exit(-1)
@@ -359,25 +350,29 @@ fn inp_comments(input: &Option<File>, buffer: &Option<File>, comment_start: char
         iline = adjustl(iline.trim()).to_string(); // Remove trailing blanks and adjust to left
         let comm = iline.find(comment_start); // Find position '!' if any ! If there is no '!' and no first 20 blank spaces (in case line is blank)
         if comm.is_none() && &iline[0..20] != "                    " {
-            buffer.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).ok();
+            buffer.write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).ok();
         }
         // If the first character is not '!'
-        if comm.is_some() && comm.unwrap() > 1 {
-            iline = iline[0..comm.unwrap()].to_string(); // Take only part of input
-            buffer.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).ok();
+        if let Some(comm_val) = comm {
+            if comm_val > 1 {
+                iline = iline[0..comm_val].to_string(); // Take only part of input
+                buffer.write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).ok();
+            }
         }
     }
-    input.as_ref().unwrap().seek(std::io::SeekFrom::Start(0)).ok();
+    
+    input_file.seek(std::io::SeekFrom::Start(0)).ok();
 }
 
 ///# Purpose:
 /// Read previous input buffer and rewrite and break into different input buffer
 /// for particular cards. Cards identfied by %
-fn inp_rewrite(buffer_file: &Option<File>, farr: &mut Array1<String>, bunit: &Option<File>, card_indicator: &mut CardInticator, carr: &Array1<String>) {
-    let reader = BufReader::new(buffer_file.as_ref().unwrap());
-    let mut farr = farr.clone();
-    let mut local_hash_map = HashMap::new();
-    
+fn inp_rewrite(buffer_file: i32, card_indicator: &mut CardInticator, mut farr: Array1<String>) {
+    let file_map = FILE_MAP.lock().unwrap();
+    let reader = BufReader::new(file_map.get(&buffer_file).unwrap().as_ref()
+    .unwrap().0.as_ref().unwrap());
+    let cunit = 996;
+    let xunit = 997;
     for (ln, line_result) in reader.lines().enumerate() {
         let mut line = line_result.unwrap();
         line = line.trim().to_string();
@@ -386,88 +381,85 @@ fn inp_rewrite(buffer_file: &Option<File>, farr: &mut Array1<String>, bunit: &Op
             let comm = line.find(' ').ok_or("No space found").unwrap();
             let fname = line[comm+1..].trim().to_string();
             let uarr = Array1::from(Vec::from(CardNumbers::uarr()));
-            farr[GETLOC(uarr, CardNumbers::Bunit.as_i32()) as usize] = fname.clone();
+            farr[getloc(uarr, CardNumbers::Bunit.as_i32()) as usize] = fname.clone();
 
-            open_file(&mut local_hash_map, 997, &fname, "card", "CARD File Open Failed--status");
-            let card_file = local_hash_map.get(&997).unwrap();
-            let mut card_reader = BufReader::new(card_file.as_ref().unwrap());
-            let cunit = tempfile();
+            io_open_file( xunit, &fname, "card", "CARD File Open Failed--status");
+            inp_comments(xunit, cunit, '!');
             
-            inp_comments(card_file, &cunit.ok(), '!');
-            
+            let card_reader = BufReader::new(file_map.get(&cunit).unwrap().as_ref().unwrap().0.as_ref().unwrap());
             for (ln, iline_result) in card_reader.lines().enumerate() {
                 let iline = iline_result.unwrap();
-                buffer_file.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).unwrap();
+                file_map.get(&cunit).unwrap().as_ref().unwrap().0.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, iline).as_bytes()).unwrap();
             }
             
         }
         let per = line.find('%'); // Find position of '%'
-        if per.is_some() {
-            let iline = adjustl(&line[per.unwrap()+1..]).trim().to_string();
+        if let Some(per_val) = per {
+            let iline = adjustl(&line[per_val + 1..]).trim().to_string();
             let card = iline.clone();
             match card.as_str() {
                 "ITER" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uiter.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uiter.as_i32()) as usize] = iline.clone();
                     card_indicator.biter = 1;
                 },
                 "PRNT" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uprnt.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uprnt.as_i32()) as usize] = iline.clone();
                     card_indicator.bprnt = 1;
                 },
                 "ADF" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uadf.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uadf.as_i32()) as usize] = iline.clone();
                     card_indicator.badf = 1;
                 },
                 "CROD" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucrod.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucrod.as_i32()) as usize] = iline.clone();
                     card_indicator.bcrod = 1;
                 },
                 "EJCT" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uejct.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uejct.as_i32()) as usize] = iline.clone();
                     card_indicator.bejct = 1;
                 },
                 "CBCS" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucbcs.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucbcs.as_i32()) as usize] = iline.clone();
                     card_indicator.bcbcs = 1;
                 },
                 "FTEM" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uftem.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uftem.as_i32()) as usize] = iline.clone();
                     card_indicator.bftem = 1;
                 },
                 "MTEM" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Umtem.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Umtem.as_i32()) as usize] = iline.clone();
                     card_indicator.bmtem = 1;
                 },
                 "CDEN" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucden.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ucden.as_i32()) as usize] = iline.clone();
                     card_indicator.bcden = 1;
                 },
                 "BCON" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ubcon.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ubcon.as_i32()) as usize] = iline.clone();
                     card_indicator.bbcon = 1;
                 },
                 "THER" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uther.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uther.as_i32()) as usize] = iline.clone();
                     card_indicator.bther = 1;
                 },
                 "XTAB" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uxtab.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uxtab.as_i32()) as usize] = iline.clone();
                     card_indicator.bxtab = 1;
                 },
                 "KERN" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ukern.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Ukern.as_i32()) as usize] = iline.clone();
                     card_indicator.bkern = 1;
                 },
                 "EXTR" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uextr.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uextr.as_i32()) as usize] = iline.clone();
                     card_indicator.bextr = 1;
                 },
                 "THET" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uthet.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uthet.as_i32()) as usize] = iline.clone();
                     card_indicator.bthet = 1;
                 },
                 "OUTP" => {
-                    farr[GETLOC(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uoutp.as_i32()) as usize] = iline.clone();
+                    farr[getloc(Array1::from(Vec::from(CardNumbers::uarr())), CardNumbers::Uoutp.as_i32()) as usize] = iline.clone();
                     card_indicator.boutp = 1;
                 },
                 _ => {
@@ -480,13 +472,15 @@ fn inp_rewrite(buffer_file: &Option<File>, farr: &mut Array1<String>, bunit: &Op
 
         }
         if per.is_none() {
-            buffer_file.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, line).as_bytes()).unwrap();
+            FILE_MAP.lock().unwrap().get(&CardNumbers::Umode.as_i32()).unwrap()
+            .as_ref().unwrap().0.as_ref().unwrap().write_all(format!("x {: >5} {}\n", ln, line)
+            .as_bytes()).unwrap();
         }
 
     }
 }
 
-fn GETLOC(arr: Array1<CardNumbers>, elm: i32) -> i32 {
+fn getloc(arr: Array1<CardNumbers>, elm: i32) -> i32 {
     let mut loc = 0;
     for (i,j) in arr.iter().enumerate() {
         if j.as_i32() == elm {
@@ -496,8 +490,115 @@ fn GETLOC(arr: Array1<CardNumbers>, elm: i32) -> i32 {
     loc
 
 }
-fn backspace(file: &mut Option<File>) {
-    file.as_ref().unwrap().seek(SeekFrom::Start(0)).ok();
+///The BACKSPACE statement positions the specified file to just before the preceding record.
+/// BACKSPACE in a terminal file has no effect.
+///u must be connected for sequential access. Execution of a BACKSPACE statement on a direct-access file is not defined in the FORTRAN 77 Standard, and is unpredictable. We do not recommend using a BACKSPACE statement on a direct-access file or an append access file.
+///Execution of the BACKSPACE statement modifies the file position, as follows:
+/// 
+///| Prior to Execution               | After Execution                      |
+///|----------------------------------|--------------------------------------|
+///| Beginning of the file            | Remains at the beginning of the file |
+///| Beyond the endfile record        | before the endfile record            |
+///| Beginning of the previous record | Beginning of the previous record     |
+/// 
+fn backspace(unit: i32, error: Option<String>) -> Result<(), std::io::Error> {
+    let mut file_map = FILE_MAP.lock().unwrap();
+    let file_entry_result = file_map.get_mut(&unit).ok_or(std::io::Error::new(std::io::ErrorKind::NotFound, "File unit not found"));
+    
+    let file_entry = match file_entry_result {
+        Ok(entry) => entry,
+        Err(e) => return Err(e)
+    };
+
+    let (file_opt, meta) = file_entry.as_mut().unwrap();
+    if meta.access.is_some() && meta.access != Some(Access::Sequential) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            error.unwrap_or_else(|| {
+                "BACKSPACE statement on a direct-access file is not defined in the FORTRAN 77 Standard, and is unpredictable. We do not recommend using a BACKSPACE statement on a direct-access file or an append access file.".to_string()
+            }),
+        ));
+    }
+
+    let line_number = meta.ln.ok_or(std::io::Error::new(std::io::ErrorKind::Other, "Line number not set"))?;
+    
+    if line_number == 0 {
+        return Ok(());
+    }
+
+    let file = file_opt.as_mut().ok_or(std::io::Error::new(std::io::ErrorKind::Other, "File not set"))?;
+    let end = file.seek(std::io::SeekFrom::End(0))? as i32;
+
+    if line_number > end {
+        meta.ln = Some(end);
+    }
+
+    let current_pos = file.stream_position()? as i32;
+    
+    if line_number < current_pos {
+        meta.ln = Some(file.seek(std::io::SeekFrom::Current(-1))? as i32);
+    }
+
+    Ok(())
+}
+
+#[macro_export]
+macro_rules! backspace {
+    (unit: $unit:expr) => {
+        backspace($unit, None)
+    };
+    (unit: $unit:expr, error: $error:expr) => {
+        backspace($unit, Some($error))
+    };
+        
+}
+
+fn rewind(unit: i32, error: Option<String>) -> Result<(), Error> {
+    let mut file_map = FILE_MAP.lock().unwrap();
+    let file_entry_result = file_map.get_mut(&unit).ok_or(std::io::Error::new(std::io::ErrorKind::NotFound, "File unit not found"));
+    
+    let file_entry = match file_entry_result {
+        Ok(entry) => entry,
+        Err(e) => return Err(e)
+    };
+    let (file_opt, meta) = file_entry.as_mut().unwrap();
+
+    match meta.access {
+        Some(Access::Sequential) => {
+            meta.ln = Some(0);
+            let file = file_opt.as_mut().ok_or(Error::new(ErrorKind::Other, "File not set"))?;
+            file.seek(SeekFrom::Start(0))?;
+            Ok(())
+        },
+        Some(Access::Append) => {
+            meta.ln = Some(0);
+            let file = file_opt.as_mut().ok_or(Error::new(ErrorKind::Other, "File not set"))?;
+            file.seek(SeekFrom::Start(0))?;
+            Ok(())
+        },
+        Some(Access::Direct) => {
+            if error.is_some() {
+                Err(Error::new(ErrorKind::Other, error.unwrap()))
+            }
+            else {
+                Err(Error::new(ErrorKind::Other, "REWIND statement on a direct-access file is not defined in the FORTRAN 77 Standard, and is unpredictable. We do not recommend using a REWIND statement on a direct-access file or an append access file."))
+            }
+        }
+        None => {
+            Err(Error::new(ErrorKind::Other, "Access not set"))
+        }
+    }
+
+}
+#[macro_export]
+macro_rules! rewind {
+    (unit: $unit:expr) => {
+        rewind($unit, None)
+    };
+    (unit: $unit:expr, error: $error:expr) => {
+        rewind($unit, Some($error))
+    };
+        
 }
 
 /// # Purpose:
@@ -566,65 +667,85 @@ fn backspace(file: &mut Option<File>) {
 /// 
 /// END SUBROUTINE inp_mode
 /// ```
-fn inp_mode(xbunit: &Option<File>, card_indicator: &mut CardInticator) {
-    let mut line = String::new();
-    let mut mode = String::new();
-    let mut ln = 0;
-    let mut ios = 0;
-    let mut message = String::new();
-    let mut mode_desc = String::new();
-    let mut ind = String::new();
-    let mut reader = BufReader::new(xbunit.as_ref().unwrap());
-    match reader.read_line(&mut line) {
-        Ok(bytes_read) => {
-            if bytes_read == 0 {
-                // Reached EOF (end-of-file)
-                println!("ERROR IN READING MODE");
-                exit(-1)
-            } else {
-                ind = line[0..2].to_string();
-                ln = line[2..7].trim().parse::<i32>().unwrap();
-                mode = line[7..].trim().to_string();
-            }
-        }
-        Err(err) => {
-            // Handle the error
-            println!("An error occurred: {}", err);
-        }
+fn inp_mode(xbunit: i32, card_indicator: &mut CardInticator) -> Result<(), Error> {
+    let map = FILE_MAP.lock().unwrap();
+    let mut reader = BufReader::new(map.get(&xbunit).unwrap().as_ref().
+    unwrap().0.as_ref().unwrap());
+    for (ln, line) in reader.lines().enumerate() {
+        let mut iline = line?;
+        iline = iline.trim().to_string();  
     }
-    message = "ERROR IN READING MODE".to_string();
-    er_message(xbunit, ios, ln, &message, None);
-    mode = adjustl(&mode);
-    match mode.as_str() {
-        "FORWARD" => {
-            mode_desc = "FORWARD CALCULATION".to_string();
-        },
-        "ADJOINT" => {
-            mode_desc = "ADJOINT CALCULATION".to_string();
-        },
-        "FIXEDSRC" => {
-            mode_desc = "FIXED SOURCE CALCULATION".to_string();
-        },
-        "RODEJECT" => {
-            if card_indicator.bther == 0 {
-                mode_desc = "ROD EJECTION CALCULATION WITHOUT T-H FEEDBACK".to_string();
-            } else {
-                mode_desc = "ROD EJECTION CALCULATION WITH T-H FEEDBACK".to_string();
-            }
-        },
-        "BCSEARCH" => {
-            if card_indicator.bther == 0 {
-                mode_desc = "CRITICAL BORON CONCENTRATION SEARCH WITHOUT T-H FEEDBACK".to_string();
-            } else {
-                mode_desc = "CRITICAL BORON CONCENTRATION SEARCH WITH T-H FEEDBACK".to_string();
-            }
-        },
-        _ => {
-            println!("MODE : {} IS UNIDENTIFIED", mode);
-            exit(-1);
-        }
-    }
-    println!("CALCULATION MODE : {}", mode_desc);
+    Ok(())
+}
+
+/// ```fortran
+/// SUBROUTINE er_message (funit, iost, ln, mess, xtab, buf)
+/// !
+/// ! Purpose:
+/// !    To provide error message
+/// !
+///
+///IMPLICIT NONE
+///
+///INTEGER, INTENT(IN) :: funit, iost, ln
+///CHARACTER(LEN=*), INTENT(IN) :: mess
+///INTEGER, OPTIONAL, INTENT(IN) :: xtab, buf
+///
+///IF (iost < 0) THEN
+///  WRITE(funit,*)
+///  WRITE(*,*)
+///  WRITE(*,*)''//achar(27)//'[31m OOPS! WE FOUND AN ERROR.'//achar(27)//'[0m'
+///
+///  IF (PRESENT(xtab)) THEN
+///    WRITE(funit, 1014) ln, xtab
+///  ELSE
+///    WRITE(funit, 1006) carr(getloc(uarr,buf))
+///    WRITE(funit, 1013) ln, farr(getloc(uarr,buf))
+///  END IF
+///  WRITE(funit,*) mess
+///  IF (PRESENT(xtab)) THEN
+///    WRITE(*, 1014) ln, xtab
+///  ELSE
+///    WRITE(*, 1006) carr(getloc(uarr,buf))
+///    WRITE(*, 1013) ln, farr(getloc(uarr,buf))
+///  END IF
+///  WRITE(*,*) mess
+///  1013 FORMAT(2x, 'THIS LINE NEEDS MORE INPUT DATA. LINE', I4, &
+///  ' IN FILE : ', A100)
+///  1014 FORMAT(2x, 'ERROR: LINE', I4, &
+///  'IN XTAB FILE FOR MATERIAL NUMBER' , I4, '. IT NEEDS MORE DATA')
+///  STOP
+///END IF
+///
+///IF (iost > 0) THEN
+///  WRITE(funit,*)
+///  WRITE(*,*)
+///  WRITE(*,*)''//achar(27)//'[31m OOPS! WE FOUND AN ERROR.'//achar(27)//'[0m'
+///
+///  IF (PRESENT(xtab)) THEN
+///    WRITE(funit, 1005) ln, xtab
+///  ELSE
+///    WRITE(funit, 1006) carr(getloc(uarr,buf))
+///    WRITE(funit, 1004) ln, farr(getloc(uarr,buf))
+///  END IF
+///  WRITE(funit,*) mess
+///  IF (PRESENT(xtab)) THEN
+///    WRITE(*, 1005) ln, xtab
+///  ELSE
+///    WRITE(*, 1006) carr(getloc(uarr,buf))
+///    WRITE(*, 1004) ln, farr(getloc(uarr,buf))
+///  END IF
+///  WRITE(*,*) mess
+///  1006 FORMAT(2X, 'ERROR: THERE IS AN ERROR IN CARD %', A4)
+///  1004 FORMAT(2X, 'PLEASE CHECK LINE NUMBER', I4, ' IN FILE : ', A100)
+///  1005 FORMAT(2X, 'ERROR: PLEASE CHECK LINE NUMBER', I4, &
+///  ' IN XTAB FILE FOR MATERIAL NUMBER ', I4)
+///  STOP
+///END IF
+///
+///END SUBROUTINE er_message
+/// ```
+fn er_message(funit: i32, iost: i32, ln: i32, mess: String, xtab: Option<i32>, buf: Option<i32> ) {
 
     
 }

@@ -97,33 +97,7 @@ INTEGER :: g, i, N
 N = command_argument_count()
 IF (N < 1) THEN
    WRITE(*,*) '  NOTE : You can also write the input directly after the command'
-   WRITE(*,'(A,A100)',ADVANCE='NO') '  INPUT NAME : '
-   READ(*,*) iname
-ELSE
-   CALL get_command_argument(1,iname) !Grab the first command line argument
-ENDIF
-
-iname = TRIM(iname)
-
-CALL openFIle (iunit, iname, 'input', 'Input File Open Failed--status')
-
-oname = TRIM(iname) // '.out'
-oname = TRIM(oname)
-
-OPEN (UNIT=ounit, FILE=oname, STATUS='REPLACE', ACTION='WRITE')
-
-OPEN (UNIT=umode, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uxsec, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=ugeom, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=ucase, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uesrc, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uiter, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uprnt, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uadf,  STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=ucrod, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=ubcon, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=uftem, STATUS='SCRATCH', ACTION='READWRITE')
-OPEN (UNIT=umtem, STATUS='SCRATCH', ACTION='READWRITE')
+STATUS='SCRATCH', ACTION='READWRITE')
 OPEN (UNIT=ucden, STATUS='SCRATCH', ACTION='READWRITE')
 OPEN (UNIT=ucbcs, STATUS='SCRATCH', ACTION='READWRITE')
 OPEN (UNIT=uejct, STATUS='SCRATCH', ACTION='READWRITE')

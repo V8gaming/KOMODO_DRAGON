@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "KOMODO_DRAGON"
-version = "0.1.0"
-dependencies = [
- "ndarray",
- "phf",
- "tempfile",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -70,6 +61,22 @@ name = "fastrand"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6999dc1837253364c2ebb0704ba97994bd874e8f195d665c50b7548f6ea92764"
+
+[[package]]
+name = "komodo_dragon"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "ndarray",
+ "phf",
+ "tempfile",
+]
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
